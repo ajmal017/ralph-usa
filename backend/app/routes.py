@@ -95,3 +95,16 @@ def getIndicatorData(formatted, equity):
 def getTopAssets():
   result = mocks.getTopAssets()
   return jsonify({'data': result})
+
+@app.route('/backtester/dropdown', methods=['GET'])
+def getDates():
+  tradingAlgs = mocks.getTradingAlgorithms()
+  result = mocks.getBacktesterDates()
+  result['models'] = tradingAlgs
+  return jsonify(result)
+
+@app.route('/backtester/run', methods=['POST'])
+def runBacktester():
+  json = request.get_json()
+  result = mocks.runBacktester(json['startDate'], json['endDate'], int(json['portfolioValue']), json['model'])
+  return jsonify(result)

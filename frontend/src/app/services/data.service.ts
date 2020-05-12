@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable, of } from 'rxjs';
+
 
 
 
@@ -17,7 +18,7 @@ export class DataService {
     this.http.get(this.serverURL + '/allocation').subscribe(result => {
       console.log('result', result);
     })
-    
+
     return this.http.get(this.serverURL + '/allocation')
   }
 
@@ -59,5 +60,15 @@ export class DataService {
     return this.http.get(this.serverURL + '/assets/top');
   }
 
+  getBacktesterDropdownData(){
+    console.log('called service');
+    return this.http.get(this.serverURL + '/backtester/dropdown');
+  }
+
+  runBacktester(params:any){
+    console.log('params in service', params);
+
+    return this.http.post(this.serverURL + '/backtester/run', params)
+  }
 
 }

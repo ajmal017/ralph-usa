@@ -1,10 +1,12 @@
 import sys
+import datetime
 # gives backend app access to modules in algDev by adding directory to pythonpath
 sys.path.insert(1, '../')
 import numpy as np
 # gonna have to rewrite this once DB structure in place
 import algDev.API.dataGatherer as dataGatherer
 import algDev.API.indicators as indicators
+import algDev.API.backtest as backtest
 import algDev.db.wrapper as wrapper
 
 
@@ -481,7 +483,7 @@ multiseriesData = [
       },
     
       {
-        "name": "Latvian Brothels",
+        "name": "Indicies",
         "series": [
           {
             "name": 10,
@@ -671,33 +673,106 @@ def getTopAssets():
   changes = []
 
   for asset in allAssets:
-    print('current asset', asset)
     data = dataGatherer.getPrices(asset, "5d")
-
-    print('data in top assets is', data)
 
     firstObj = data[0]
     lastObj = data[len(data)-1]
 
     totalChange = lastObj['value'] - firstObj['value']
     percentChange = (totalChange/firstObj['value']) * 100
-    print('percentChange is', percentChange)
-    changes.append((percentChange, asset))
+    changes.append((round(percentChange, 3), asset))
 
   changes.sort()
 
+  tempResult = []
   finalResult = []
 
   for item in changes[-3:]:
     tempDict = {'percentChange': item[0], 'asset': item[1], 'type': 'top'} 
-    finalResult.append(tempDict)
+    tempResult.append(tempDict)
 
   for item in changes[:3]:
     tempDict = {'percentChange': item[0], 'asset': item[1], 'type': 'bottom'} 
-    finalResult.append(tempDict)
-
-  return finalResult
-
-
+    tempResult.append(tempDict)
   
 
+  return tempResult
+
+def getBacktesterDates():
+  print('get here')
+  dbStartDate = wrapper.getFirstDate()
+  dbEndDate = wrapper.getMostRecentDate()
+  toReturn = {'firstDate': dbStartDate, 'endDate': dbEndDate}
+  return toReturn
+
+def getTradingAlgorithms():
+  wrapperResult = wrapper.getTradingAlgorithms()
+  objArr = []
+
+  for tup in wrapperResult:
+    tempObj = {}
+    tempObj['name'] = tup[9]
+    tempObj['id'] = tup[0]
+    tempObj['modelCollectionIds'] = tup[7]
+    
+    params = []
+    params.append({'name': 'tickers', 'value': tup[1]})
+    params.append({'name': 'features', 'value': tup[2]})
+    params.append({'name': 'length', 'value': tup[3]})
+    params.append({'name': 'upper threshold', 'value': float(tup[4])})
+    params.append({'name': 'lower threshold', 'value': float(tup[5])})
+    params.append({'name': 'period', 'value': tup[6]})
+    params.append({'name': 'voting type', 'value': tup[8]})
+    tempObj['parameters'] = params
+
+    objArr.append(tempObj)
+  
+  return objArr
+
+
+
+def runBacktester(start, end, portfolioValue, algID):
+  startDate = toDate(start)
+  endDate = toDate(end)
+  
+  result = backtest.run_backtest(startDate, endDate, portfolioValue, algID)
+
+  for stat in result['stats']:
+    stat['value'] = round(stat['value'], 3)
+    split = stat['name'].split('_')
+    for i in range(len(split)):
+      split[i] = (split[i][0].upper()) + split[i][1:]
+    
+    newName = " ".join(split)
+    stat['name'] = newName
+
+  
+  portfolioSeries = []
+  snpSeries = []
+  initialSeries = []
+
+  for i in range(len(result['dates'])):
+    portObj = {'name': i, 'value': result['portfolioValues'][i]}
+    snpObj = {'name': i, 'value': result['snpVals'][i]}
+    initialObj = {'name': i, 'value': result['initialValues'][i]}
+
+    portfolioSeries.append(portObj)
+    snpSeries.append(snpObj)
+    initialSeries.append(initialObj)
+  
+  graphData = [{'name': 'Portfolio Value', 'series': portfolioSeries}, 
+              {'name': 'SNP Value', 'series': snpSeries},
+              {'name': 'Initial Value', 'series': initialSeries}
+  ]
+
+  result['graphData'] = graphData
+  
+  return result
+
+# def run_backtest(start_date, end_date, pf_value, tradingAlgorithmId):
+
+
+def toDate(dateString): 
+    date = datetime.datetime.strptime(dateString, "%Y-%m-%dT%H:%M:%S.%fZ").date()
+    dt = datetime.datetime(date.year, date.month, date.day)
+    return dt
